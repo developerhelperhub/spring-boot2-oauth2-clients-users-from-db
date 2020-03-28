@@ -1,6 +1,6 @@
 # Spring Boot 2.2.5 Oauth2 Authorization Server and Resource Server
 
-This repository contains the Oauth2 authorization server and resource server implementation with JWT token store. This example is continuation of the [Oauth2 Autherization Server and Client Application](https://github.com/developerhelperhub/spring-boot2-oauth2-server-grant-password-refresh-token/) example. I would suggest, please look previous implementation before looking this source code. In the previous example, I used same authentication server as resource. In this example we have separate resource server. Whenever we have authentication server and resoruces server are different, we need to use central token management. Currently I am using the JWT token store and pervious example we used in memory token store. sprint boot provides default in memory token store.
+This repository contains the Oauth2 authorization server and resource server implementation. This example is continuation of the [Oauth2 Autherization Server and Client Application](https://github.com/developerhelperhub/spring-boot2-authorization-and-resource-servers/) example. I would suggest, please look previous implementation before looking this source code. In the previous example, I used same authentication server as resource, but users and clients information are stored in memory. In this example, I am using to load users and clients from database. I am using mongoDB database to store information in application. 
 
 This repository contains four maven project. 
 * my-cloud-service: Its main module, it contains the dependecy management of our application.
@@ -9,178 +9,778 @@ This repository contains four maven project.
 * resource-service: This resource server to provide the resource services for our application.
 
 ### Updation and additions in the identity-service
-We need to add maven dependency to manage and support the JWT token service in the ```pom.xml```. Spring boot provides the below dependency to support it.
+We need to add maven dependency to manage and support the entity management on mongoDB. Spring boot provides the below dependency to support it.
 
 ```xml
 <dependency>
-    <groupId>org.springframework.security</groupId>
-    <artifactId>spring-security-jwt</artifactId>
-    <version>1.1.0.RELEASE</version>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-mongodb</artifactId>
 </dependency>
 ```
+Note: When I added the mongoDB dependency in this project, I got an error ```Caused by: java.lang.ClassNotFoundException: org.springframework.data.mongodb.core.convert.MongoCustomConversions``` because I am using older ```org.springframework.data:spring-data-releasetrain:Fowler-SR2``` release train dependency in ```my-cloud-service``` parent project and I changed to ```org.springframework.data:spring-data-releasetrain:Moore-SR6``` latest version.
 
-We need to add the additional code in the ```AuthorizationServerConfig``` to configure and manage the JWT token management. The below code are implemented.
+### Create the services for managing the users.
 
-* Need to create the ```JwtAccessTokenConverter``` bean to convert the JWT token. In this example, we are using sign key method to convert JWT token for authorization server and resource server.
-
-```java
-	@Bean
-	public JwtAccessTokenConverter accessTokenConverter() {
-		JwtAccessTokenConverter converter = new JwtAccessTokenConverter();
-		converter.setSigningKey("123456");
-		return converter;
-	}
-```
-
-* Need to create the TokenStore bean to specify which type of toke store, here we need to specify the ```JwtTokenStore```
+We need to create the ```UserEntity``` entity class for user. This entity class is used to store the users and the collection name ```users``` in the databae.
 
 ```java
-	@Bean
-	public TokenStore tokenStore() {
-		return new JwtTokenStore(accessTokenConverter());
+package com.developerhelperhub.ms.id.entity;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+@Document("users")
+public class UserEntity {
+
+	@Id
+	private String username;
+
+	private String password;
+
+	private boolean accountNonExpired;
+
+	private boolean accountNonLocked;
+
+	private boolean credentialsNonExpired;
+
+	private boolean enabled;
+
+	public String getUsername() {
+		return username;
 	}
+
+	public void setUsername(String username) {
+		this.username = username;
+	}
+
+	public String getPassword() {
+		return password;
+	}
+
+	public void setPassword(String password) {
+		this.password = password;
+	}
+
+	public boolean isAccountNonExpired() {
+		return accountNonExpired;
+	}
+
+	public void setAccountNonExpired(boolean accountNonExpired) {
+		this.accountNonExpired = accountNonExpired;
+	}
+
+	public boolean isAccountNonLocked() {
+		return accountNonLocked;
+	}
+
+	public void setAccountNonLocked(boolean accountNonLocked) {
+		this.accountNonLocked = accountNonLocked;
+	}
+
+	public boolean isCredentialsNonExpired() {
+		return credentialsNonExpired;
+	}
+
+	public void setCredentialsNonExpired(boolean credentialsNonExpired) {
+		this.credentialsNonExpired = credentialsNonExpired;
+	}
+
+	public boolean isEnabled() {
+		return enabled;
+	}
+
+	public void setEnabled(boolean enabled) {
+		this.enabled = enabled;
+	}
+
+}
 ```
 
-* Need to add the token store service in the endpoint configuration of ```AuthorizationServerEndpointsConfigurer```.
+We need to create the mongo db repository ```UserRepository``` for users to manage the CRUD operations on mongo.
 
+```java
+package com.developerhelperhub.ms.id.repository;
+
+import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.stereotype.Repository;
+
+import com.developerhelperhub.ms.id.entity.UserEntity;
+
+@Repository
+public interface UserRepository extends MongoRepository<UserEntity, String>{
+
+}
+```
+
+We need to create the ```User``` service manage load the users from DB and create the users on DB. The below functionalities are added
+
+* The User service scpoe is ```prototype``` because spring boot default scope is ```Singletone```. In this usecase user service is required to create new object whenever required in our application. 
+* Implements the ```UserDetails``` interface is used to manage the information of user authentication.
+* Implements the ```UserDetailsService``` interface is used to load the users from db based on username. This service is using to configure the authentication manager.
+- @Override ```loadUserByUsername``` method and added the logic to load the user entity based on username.
+* ```create``` method is used to store the user information into the db
+
+```java
+package com.developerhelperhub.ms.id.data;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Optional;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Scope;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
+import com.developerhelperhub.ms.id.entity.UserEntity;
+import com.developerhelperhub.ms.id.repository.UserRepository;
+
+@Component
+@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
+public class User implements UserDetails, UserDetailsService {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(User.class);
+
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 6072929707082314818L;
+
+	private String username;
+
+	private String password;
+
+	private boolean accountNonExpired;
+
+	private boolean accountNonLocked;
+
+	private boolean credentialsNonExpired;
+
+	private boolean enabled;
+
+	private Collection<? extends GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
+
+	@Autowired
+	private UserRepository userRepository;
+
+	@Autowired
+	private PasswordEncoder passwordEncoder;
+
+	public User() {
+	}
+
+	public User(UserEntity user) {
+		this.username = user.getUsername();
+
+		this.password = user.getPassword();
+
+		this.accountNonExpired = user.isAccountNonExpired();
+
+		this.accountNonLocked = user.isAccountNonLocked();
+
+		this.credentialsNonExpired = user.isCredentialsNonExpired();
+
+		this.enabled = user.isEnabled();
+
+	}
+
+	public void create() {
+		UserEntity entity = new UserEntity();
+
+		entity.setUsername(this.username);
+
+		entity.setPassword(passwordEncoder.encode(this.password));
+
+		entity.setAccountNonExpired(this.accountNonExpired);
+
+		entity.setAccountNonLocked(this.accountNonLocked);
+
+		entity.setCredentialsNonExpired(this.credentialsNonExpired);
+
+		entity.setEnabled(this.enabled);
+
+		userRepository.save(entity);
+
+		LOGGER.debug("{} user created!", this.username);
+	}
+
+	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+		Optional<UserEntity> entity = userRepository.findById(username);
+
+		if (!entity.isPresent()) {
+			throw new UsernameNotFoundException("Username does not found");
+		}
+
+		return new User(entity.get());
+	}
+
+	public String getUsername() {
+		return username;
+	}
+
+	public void setUsername(String username) {
+		this.username = username;
+	}
+
+	public String getPassword() {
+		return password;
+	}
+
+	public void setPassword(String password) {
+		this.password = password;
+	}
+
+	public boolean isAccountNonExpired() {
+		return accountNonExpired;
+	}
+
+	public void setAccountNonExpired(boolean accountNonExpired) {
+		this.accountNonExpired = accountNonExpired;
+	}
+
+	public boolean isAccountNonLocked() {
+		return accountNonLocked;
+	}
+
+	public void setAccountNonLocked(boolean accountNonLocked) {
+		this.accountNonLocked = accountNonLocked;
+	}
+
+	public boolean isCredentialsNonExpired() {
+		return credentialsNonExpired;
+	}
+
+	public void setCredentialsNonExpired(boolean credentialsNonExpired) {
+		this.credentialsNonExpired = credentialsNonExpired;
+	}
+
+	public boolean isEnabled() {
+		return enabled;
+	}
+
+	public void setEnabled(boolean enabled) {
+		this.enabled = enabled;
+	}
+
+	public Collection<? extends GrantedAuthority> getAuthorities() {
+		return authorities;
+	}
+
+	public void setAuthorities(Collection<? extends GrantedAuthority> authorities) {
+		this.authorities = authorities;
+	}
+}
+```
+
+### Create the services for managing the clients.
+
+We need to create the ```OauthClientEntity``` entity class for clients. This entity class is used to store the clients and the collection name ```oauth_clients``` in the databae.
+
+```java
+package com.developerhelperhub.ms.id.entity;
+
+import java.util.Set;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+@Document("oauth_clients")
+public class OauthClientEntity {
+
+	@Id
+	private String clientId;
+
+	private Set<String> resourceIds;
+
+	private boolean secretRequired;
+
+	private String clientSecret;
+
+	private boolean scoped;
+
+	private Set<String> scope;
+
+	private Set<String> authorizedGrantTypes;
+
+	private Set<String> registeredRedirectUri;
+
+	private Integer accessTokenValiditySeconds;
+
+	private Integer refreshTokenValiditySeconds;
+
+	private boolean autoApprove;
+
+	public String getClientId() {
+		return clientId;
+	}
+
+	public void setClientId(String clientId) {
+		this.clientId = clientId;
+	}
+
+	public Set<String> getResourceIds() {
+		return resourceIds;
+	}
+
+	public void setResourceIds(Set<String> resourceIds) {
+		this.resourceIds = resourceIds;
+	}
+
+	public boolean isSecretRequired() {
+		return secretRequired;
+	}
+
+	public void setSecretRequired(boolean secretRequired) {
+		this.secretRequired = secretRequired;
+	}
+
+	public String getClientSecret() {
+		return clientSecret;
+	}
+
+	public void setClientSecret(String clientSecret) {
+		this.clientSecret = clientSecret;
+	}
+
+	public boolean isScoped() {
+		return scoped;
+	}
+
+	public void setScoped(boolean scoped) {
+		this.scoped = scoped;
+	}
+
+	public Set<String> getScope() {
+		return scope;
+	}
+
+	public void setScope(Set<String> scope) {
+		this.scope = scope;
+	}
+
+	public Set<String> getAuthorizedGrantTypes() {
+		return authorizedGrantTypes;
+	}
+
+	public void setAuthorizedGrantTypes(Set<String> authorizedGrantTypes) {
+		this.authorizedGrantTypes = authorizedGrantTypes;
+	}
+
+	public Set<String> getRegisteredRedirectUri() {
+		return registeredRedirectUri;
+	}
+
+	public void setRegisteredRedirectUri(Set<String> registeredRedirectUri) {
+		this.registeredRedirectUri = registeredRedirectUri;
+	}
+
+	public Integer getAccessTokenValiditySeconds() {
+		return accessTokenValiditySeconds;
+	}
+
+	public void setAccessTokenValiditySeconds(Integer accessTokenValiditySeconds) {
+		this.accessTokenValiditySeconds = accessTokenValiditySeconds;
+	}
+
+	public Integer getRefreshTokenValiditySeconds() {
+		return refreshTokenValiditySeconds;
+	}
+
+	public void setRefreshTokenValiditySeconds(Integer refreshTokenValiditySeconds) {
+		this.refreshTokenValiditySeconds = refreshTokenValiditySeconds;
+	}
+
+	public boolean isAutoApprove() {
+		return autoApprove;
+	}
+
+	public void setAutoApprove(boolean autoApprove) {
+		this.autoApprove = autoApprove;
+	}
+
+}
+```
+
+We need to create the mongo db repository ```OauthClientRepository``` for clients to manage the CRUD operations on mongo.
+
+```java
+package com.developerhelperhub.ms.id.repository;
+
+import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.stereotype.Repository;
+
+import com.developerhelperhub.ms.id.entity.OauthClientEntity;
+
+@Repository
+public interface OauthClientRepository extends MongoRepository<OauthClientEntity, String> {
+
+}
+```
+
+We need to create the ```OauthClient``` service manage load the clients from DB and create the client detail on DB. The below functionalities are added
+
+* The User service scpoe is ```prototype``` because spring boot default scope is ```Singletone```. In this usecase client service is required to create new object whenever required in our application. 
+* Implements the ```ClientDetails``` interface is used to manage the information of client authentication.
+* Implements the ```ClientDetailsService``` interface is used to load the clients from db based on ```client id```. This service is using to configure the authorization server.
+- @Override ```loadClientByClientId``` method and added the logic to load the client entity based on ```client id```.
+* ```create``` method is used to store the client information into the db
+
+```java
+package com.developerhelperhub.ms.id.data;
+
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Scope;
+import org.springframework.data.annotation.Id;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.provider.ClientDetails;
+import org.springframework.security.oauth2.provider.ClientDetailsService;
+import org.springframework.security.oauth2.provider.ClientRegistrationException;
+import org.springframework.stereotype.Component;
+
+import com.developerhelperhub.ms.id.entity.OauthClientEntity;
+import com.developerhelperhub.ms.id.repository.OauthClientRepository;
+
+@Component
+@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
+public class OauthClient implements ClientDetails, ClientDetailsService {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(OauthClient.class);
+
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = -7265763015228159319L;
+
+	@Id
+	private String clientId;
+
+	private Set<String> resourceIds;
+
+	private boolean secretRequired;
+
+	private String clientSecret;
+
+	private boolean scoped;
+
+	private Set<String> scope;
+
+	private Set<String> authorizedGrantTypes;
+
+	private Set<String> registeredRedirectUri;
+
+	private Integer accessTokenValiditySeconds;
+
+	private Integer refreshTokenValiditySeconds;
+
+	private boolean autoApprove;
+
+	private Collection<GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
+
+	private Map<String, Object> additionalInformation = new HashMap<String, Object>();
+
+	@Autowired
+	private OauthClientRepository clientRepository;
+
+	@Autowired
+	private PasswordEncoder passwordEncoder;
+
+	public OauthClient() {
+	}
+
+	public OauthClient(OauthClientEntity entity) {
+
+		this.clientId = entity.getClientId();
+
+		this.resourceIds = entity.getResourceIds();
+
+		this.secretRequired = entity.isSecretRequired();
+
+		this.clientSecret = entity.getClientSecret();
+
+		this.scoped = entity.isScoped();
+
+		this.scope = entity.getScope();
+
+		this.authorizedGrantTypes = entity.getAuthorizedGrantTypes();
+
+		this.registeredRedirectUri = entity.getRegisteredRedirectUri();
+
+		this.accessTokenValiditySeconds = entity.getAccessTokenValiditySeconds();
+
+		this.refreshTokenValiditySeconds = entity.getRefreshTokenValiditySeconds();
+
+		this.autoApprove = entity.isAutoApprove();
+
+	}
+
+	public void create() {
+
+		OauthClientEntity entity = new OauthClientEntity();
+
+		entity.setClientId(this.clientId);
+
+		entity.setResourceIds(this.resourceIds);
+
+		entity.setSecretRequired(this.secretRequired);
+
+		entity.setClientSecret(passwordEncoder.encode(this.clientSecret));
+
+		entity.setScoped(this.scoped);
+
+		entity.setScope(this.scope);
+
+		entity.setAuthorizedGrantTypes(this.authorizedGrantTypes);
+
+		entity.setRegisteredRedirectUri(this.registeredRedirectUri);
+
+		entity.setAccessTokenValiditySeconds(this.accessTokenValiditySeconds);
+
+		entity.setRefreshTokenValiditySeconds(this.refreshTokenValiditySeconds);
+
+		entity.setAutoApprove(this.autoApprove);
+
+		clientRepository.save(entity);
+
+		LOGGER.debug("{} client created!", this.clientId);
+	}
+
+	public ClientDetails loadClientByClientId(String clientId) throws ClientRegistrationException {
+
+		Optional<OauthClientEntity> entity = clientRepository.findById(clientId);
+
+		if (!entity.isPresent()) {
+			throw new ClientRegistrationException("Client does not found!");
+		}
+
+		return new OauthClient(entity.get());
+	}
+
+	public String getClientId() {
+		return clientId;
+	}
+
+	public void setClientId(String clientId) {
+		this.clientId = clientId;
+	}
+
+	public Set<String> getResourceIds() {
+		return resourceIds;
+	}
+
+	public void setResourceIds(Set<String> resourceIds) {
+		this.resourceIds = resourceIds;
+	}
+
+	public boolean isSecretRequired() {
+		return secretRequired;
+	}
+
+	public void setSecretRequired(boolean secretRequired) {
+		this.secretRequired = secretRequired;
+	}
+
+	public String getClientSecret() {
+		return clientSecret;
+	}
+
+	public void setClientSecret(String clientSecret) {
+		this.clientSecret = clientSecret;
+	}
+
+	public boolean isScoped() {
+		return scoped;
+	}
+
+	public void setScoped(boolean scoped) {
+		this.scoped = scoped;
+	}
+
+	public Set<String> getScope() {
+		return scope;
+	}
+
+	public void setScope(Set<String> scope) {
+		this.scope = scope;
+	}
+
+	public Set<String> getAuthorizedGrantTypes() {
+		return authorizedGrantTypes;
+	}
+
+	public void setAuthorizedGrantTypes(Set<String> authorizedGrantTypes) {
+		this.authorizedGrantTypes = authorizedGrantTypes;
+	}
+
+	public Set<String> getRegisteredRedirectUri() {
+		return registeredRedirectUri;
+	}
+
+	public void setRegisteredRedirectUri(Set<String> registeredRedirectUri) {
+		this.registeredRedirectUri = registeredRedirectUri;
+	}
+
+	public Integer getAccessTokenValiditySeconds() {
+		return accessTokenValiditySeconds;
+	}
+
+	public void setAccessTokenValiditySeconds(Integer accessTokenValiditySeconds) {
+		this.accessTokenValiditySeconds = accessTokenValiditySeconds;
+	}
+
+	public Integer getRefreshTokenValiditySeconds() {
+		return refreshTokenValiditySeconds;
+	}
+
+	public void setRefreshTokenValiditySeconds(Integer refreshTokenValiditySeconds) {
+		this.refreshTokenValiditySeconds = refreshTokenValiditySeconds;
+	}
+
+	public boolean isAutoApprove() {
+		return autoApprove;
+	}
+
+	public void setAutoApprove(boolean autoApprove) {
+		this.autoApprove = autoApprove;
+	}
+
+	public boolean isAutoApprove(String scope) {
+		return autoApprove;
+	}
+
+	public Collection<GrantedAuthority> getAuthorities() {
+		return authorities;
+	}
+
+	public void setAuthorities(Collection<GrantedAuthority> authorities) {
+		this.authorities = authorities;
+	}
+
+	public Map<String, Object> getAdditionalInformation() {
+		return additionalInformation;
+	}
+
+	public void setAdditionalInformation(Map<String, Object> additionalInformation) {
+		this.additionalInformation = additionalInformation;
+	}
+
+	public OauthClientRepository getClientRepository() {
+		return clientRepository;
+	}
+
+	public void setClientRepository(OauthClientRepository clientRepository) {
+		this.clientRepository = clientRepository;
+	}
+
+}
+```
+
+We need to change below code in the ```AuthorizationServerConfig``` to configure client service. The below code is implemented.
+
+* Disable the code client details store in memory and configure our client service.
 ```java
 	@Override
-	public void configure(AuthorizationServerEndpointsConfigurer endpoints) {
-		endpoints.authenticationManager(authenticationManager).userDetailsService(userDetailsService)
-				.accessTokenConverter(accessTokenConverter());
+	public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+		clients.withClientDetails(oauthClientDetail);
+
+//		clients.inMemory().withClient(clientID).secret(passwordEncoder.encode(clientSecret))
+//				.authorizedGrantTypes("authorization_code", "password", "refresh_token").scopes("user_info")
+//				.autoApprove(true).redirectUris(redirectURLs).refreshTokenValiditySeconds(83199)
+//				.accessTokenValiditySeconds(43199);
+
 	}
 ```
 
-We need to make sure to add ```@EnableResourceServer``` annotation in the spring boot ```IdentityServiceApplication``` main class to access the resource services from the authroization server.
+We need to add below changes in the ```WebSecurity``` class to configure the user service. 
 
-Above all changes added in the respective classes, we can run the spring boot application, this application run on 8081 and the context path will ```/auth```. We can use this url ```http://localhost:8081/auth/login``` to check, whether it is working or not.
-
-**Note:** I got an error while implementing the JWT token in the authroization server. ```Cannot convert access token to JSON``` this error we got because of I missed to ```@Bean``` in the ```accessTokenConverter``` method.
-
-### Create the resource-service 
-We need to create the new spring boot application with ```security oauth2``` and ```security jwt``` dependencies. We need to add the below properties. 
-
-```properties
-logging.level.org.springframework=DEBUG
-
-server.port=8083
-server.servlet.context-path=/resources
+* Disable the code user details store in memory and configure our user service.
+```java
+	@Override
+	protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+		auth.userDetailsService(user);
+		// auth.inMemoryAuthentication().withUser(username).password(passwordEncoder().encode(password)).roles("USER");
+	}
 ```
+* Removed the code bean creation ```passwordEncoder``` from this class and moved into new class ```BeanConfiguration``` because we had an issue while starting the spring boot application. This issue was cycle bean creation on ```User``` service and ```Web Security``` service because we are autowiring the ```PasswordEncoder``` class to encode the password of the user.
 
-This application is running on ```8083``` port and context path will be ```/resources```. 
 
-We need to create the spring boot ```ResourceServiceApplication```main class:
+We added logic in the ```IdentityServiceApplication``` main spring boot application to create the users and clients while run the application.
 ```java
 package com.developerhelperhub.ms.id;
 
+import java.util.Arrays;
+import java.util.HashSet;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
+
+import com.developerhelperhub.ms.id.data.OauthClient;
+import com.developerhelperhub.ms.id.data.User;
 
 @SpringBootApplication
-public class ResourceServiceApplication {
+@EnableResourceServer
+public class IdentityServiceApplication implements CommandLineRunner {
+
+	@Autowired
+	private User user;
+
+	@Autowired
+	private OauthClient client;
 
 	public static void main(String[] args) {
-		SpringApplication.run(ResourceServiceApplication.class, args);
+		SpringApplication.run(IdentityServiceApplication.class, args);
+	}
+
+	public void run(String... args) throws Exception {
+		user.setUsername("mycloud");
+		user.setPassword("mycloud@1234");
+		user.setAccountNonExpired(true);
+		user.setAccountNonLocked(true);
+		user.setCredentialsNonExpired(true);
+		user.setEnabled(true);
+
+		user.create();
+
+		client.setClientId("my-cloud-identity");
+		client.setClientSecret("VkZpzzKa3uMq4vqg");
+		client.setResourceIds(new HashSet<String>(Arrays.asList("identity_id", "resource_id")));
+		client.setSecretRequired(true);
+		client.setScoped(true);
+		client.setScope(new HashSet<String>(Arrays.asList("user_info")));
+		client.setAuthorizedGrantTypes(
+				new HashSet<String>(Arrays.asList("authorization_code", "password", "refresh_token")));
+		client.setRegisteredRedirectUri(new HashSet<String>(Arrays.asList("http://localhost:8082/login/oauth2/code/")));
+		client.setAccessTokenValiditySeconds(43199);
+		client.setRefreshTokenValiditySeconds(83199);
+		client.setAutoApprove(true);
+
+		client.create();
 	}
 
 }
 ```
 
-We need to create new ```ResourceServerConfig``` class to configure the resource server configurations. In this resource configuration, we are adding the configuration explains below:
-
-* @Override the ```ResourceServerSecurityConfigurer``` configuration method to configure the JWT token service and other resource configurations.
-* @Override the ```HttpSecurity``` configuration to configure the endpoint which are the endpoints can be exposed.
-* We need to add same token store and access token converter in the authroization server. Please make sure the sign key must be same.
-* Need to create the token store service to configure the JWT token store. This token service, we are using to configure in the resource configuration.
-
-
-```java
-package com.developerhelperhub.ms.id.config;
-
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
-import org.springframework.security.oauth2.config.annotation.web.configuration.ResourceServerConfigurerAdapter;
-import org.springframework.security.oauth2.config.annotation.web.configurers.ResourceServerSecurityConfigurer;
-import org.springframework.security.oauth2.provider.error.OAuth2AccessDeniedHandler;
-import org.springframework.security.oauth2.provider.token.DefaultTokenServices;
-import org.springframework.security.oauth2.provider.token.TokenStore;
-import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter;
-import org.springframework.security.oauth2.provider.token.store.JwtTokenStore;
-
-@Configuration
-@EnableResourceServer
-public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
-
-	private static final String RESOURCE_ID = "resource_id";
-
-	@Override
-	public void configure(ResourceServerSecurityConfigurer resources) throws Exception {
-		resources.resourceId(RESOURCE_ID).stateless(false).tokenServices(tokenServices());
-	}
-
-	@Override
-	public void configure(HttpSecurity http) throws Exception {
-		http.anonymous().disable().authorizeRequests().antMatchers("/users/**").access("hasRole('ADMIN')").and()
-				.exceptionHandling().accessDeniedHandler(new OAuth2AccessDeniedHandler());
-	}
-
-	@Bean
-	public DefaultTokenServices tokenServices() {
-		DefaultTokenServices tokenServices = new DefaultTokenServices();
-		tokenServices.setTokenStore(tokenStore());
-		return tokenServices;
-	}
-
-	@Bean
-	public JwtAccessTokenConverter accessTokenConverter() {
-		JwtAccessTokenConverter converter = new JwtAccessTokenConverter();
-		converter.setSigningKey("123456");
-		return converter;
-	}
-
-	@Bean
-	public TokenStore tokenStore() {
-		return new JwtTokenStore(accessTokenConverter());
-	}
-
-}
-
-```
-
-We need to create ```UserController``` class to add the resource endpoints in the resource service.
-
-```java
-package com.developerhelperhub.ms.id.controller;
-
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RestController;
-
-@RestController
-public class UserController {
-
-	@RequestMapping(value = "/user", method = RequestMethod.GET)
-	public String listUser() {
-		return "success";
-	}
-
-	@RequestMapping(value = "/user", method = RequestMethod.POST)
-	public String create() {
-		return "success";
-	}
-
-	@RequestMapping(value = "/user/{id}", method = RequestMethod.DELETE)
-	public String delete(@PathVariable(value = "id") Long id) {
-		return "success";
-	}
-}
-```
-
-Above all classes creation of resource server, we can run the spring boot application, this application run on 8083. We can use this url ```http://localhost:8083/resources/user``` to check, whether it is accessing or not. Now, the API return the 401 unauthorized error. We need to generate the token from authroization server first and then we need to use that access token to access the this API.
-
+Above all changes added in the respective classes, we can run the spring authentication server and resource server to test.
 
 ### To generate the tokens with grant type "password"
 
