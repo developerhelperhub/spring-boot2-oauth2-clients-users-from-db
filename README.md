@@ -1,331 +1,227 @@
-# Spring Boot 2.2.5 Oauth2 Authentication Server and Client Application
+# Spring Boot 2.2.5 Oauth2 Authorization Server and Resource Server
 
-This repository contains the Oauth2 authentication server implementation and its client application. This explains how to build the Oauth2 authentication server in spring boot 2.2.5. 
+This repository contains the Oauth2 authorization server and resource server implementation with JWT token store. This example is continuation of the [Oauth2 Autherization Server and Client Application](https://github.com/developerhelperhub/spring-boot2-oauth2-server-grant-password-refresh-token/) example. I would suggest, please look previous implementation before looking this source code. In the previous example, I used same authentication server as resource. In this example we have separate resource server. Whenever we have authentication server and resoruces server are different, we need to use central token management. Currently I am using the JWT token store and pervious example we used in memory token store. sprint boot provides default in memory token store.
 
-This repository contains three maven project. 
+This repository contains four maven project. 
 * my-cloud-service: Its main module, it contains the dependecy management of our application.
 * identity-service: This authentication server service. 
 * client-application-service: This client application for authentication server.
+* resource-service: This resource server to provide the resource services for our application.
 
-### Creating the identity-service
-
-You need to add oauth2 dependency for authentication server. 
+### Updation and additions in the identity-service
+We need to add maven dependency to manage and support the JWT token service in the ```pom.xml```. Spring boot provides the below dependency to support it.
 
 ```xml
 <dependency>
-   <groupId>org.springframework.security.oauth</groupId>
-   <artifactId>spring-security-oauth2</artifactId>
-   <version>2.3.3.RELEASE</version>
+    <groupId>org.springframework.security</groupId>
+    <artifactId>spring-security-jwt</artifactId>
+    <version>1.1.0.RELEASE</version>
 </dependency>
 ```
 
-update the application.properties file with below properties.
+We need to add the additional code in the ```AuthorizationServerConfig``` to configure and manage the JWT token management. The below code are implemented.
+
+* Need to create the ```JwtAccessTokenConverter``` bean to convert the JWT token. In this example, we are using sign key method to convert JWT token for authorization server and resource server.
+
+```java
+	@Bean
+	public JwtAccessTokenConverter accessTokenConverter() {
+		JwtAccessTokenConverter converter = new JwtAccessTokenConverter();
+		converter.setSigningKey("123456");
+		return converter;
+	}
+```
+
+* Need to create the TokenStore bean to specify which type of toke store, here we need to specify the ```JwtTokenStore```
+
+```java
+	@Bean
+	public TokenStore tokenStore() {
+		return new JwtTokenStore(accessTokenConverter());
+	}
+```
+
+* Need to add the token store service in the endpoint configuration of ```AuthorizationServerEndpointsConfigurer```.
+
+```java
+	@Override
+	public void configure(AuthorizationServerEndpointsConfigurer endpoints) {
+		endpoints.authenticationManager(authenticationManager).userDetailsService(userDetailsService)
+				.accessTokenConverter(accessTokenConverter());
+	}
+```
+
+We need to make sure to add ```@EnableResourceServer``` annotation in the spring boot ```IdentityServiceApplication``` main class to access the resource services from the authroization server.
+
+Above all changes added in the respective classes, we can run the spring boot application, this application run on 8081 and the context path will ```/auth```. We can use this url ```http://localhost:8081/auth/login``` to check, whether it is working or not.
+
+**Note:** I got an error while implementing the JWT token in the authroization server. ```Cannot convert access token to JSON``` this error we got because of I missed to ```@Bean``` in the ```accessTokenConverter``` method.
+
+### Create the resource-service 
+We need to create the new spring boot application with ```security oauth2``` and ```security jwt``` dependencies. We need to add the below properties. 
 
 ```properties
 logging.level.org.springframework=DEBUG
 
-server.port=8081
-server.servlet.context-path=/auth
-
-user.oauth.clientId=my-cloud-identity
-user.oauth.clientSecret=VkZpzzKa3uMq4vqg
-user.oauth.redirectUris=http://localhost:8082/login/oauth2/code/
-user.oauth.user.username=mycloud
-user.oauth.user.password=mycloud@1234
+server.port=8083
+server.servlet.context-path=/resources
 ```
 
-```client id, client secreate and redirect uris``` are used in the ```AuthorizationServerConfigurerAdapter``` configuration class. ```cliend id and client secreate``` are used in the Oauth2 client configuration. This ```redirect URIs``` is using to redirect and share the autherization code for the client application. ```Username and password``` are using for login the autherization server.
+This application is running on ```8083``` port and context path will be ```/resources```. 
 
-Update the ```IdentityServiceApplication``` class to add ```@EnableResourceServer```:
-
+We need to create the spring boot ```ResourceServiceApplication```main class:
 ```java
 package com.developerhelperhub.ms.id;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
 
 @SpringBootApplication
-@EnableResourceServer
-public class IdentityServiceApplication {
+public class ResourceServiceApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(IdentityServiceApplication.class, args);
+		SpringApplication.run(ResourceServiceApplication.class, args);
 	}
 
 }
 ```
 
-Create new claas ```AuthorizationServerConfig``` to configure the oauth autherization server. We are configuring the client information of oauth2 autherization in memroy of the applciation. 
+We need to create new ```ResourceServerConfig``` class to configure the resource server configurations. In this resource configuration, we are adding the configuration explains below:
+
+* @Override the ```ResourceServerSecurityConfigurer``` configuration method to configure the JWT token service and other resource configurations.
+* @Override the ```HttpSecurity``` configuration to configure the endpoint which are the endpoints can be exposed.
+* We need to add same token store and access token converter in the authroization server. Please make sure the sign key must be same.
+* Need to create the token store service to configure the JWT token store. This token service, we are using to configure in the resource configuration.
+
 
 ```java
 package com.developerhelperhub.ms.id.config;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
-import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
-import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
-import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerSecurityConfigurer;
-
-@Configuration
-@EnableAuthorizationServer
-public class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
-
-	@Value("${user.oauth.clientId}")
-	private String clientID;
-	@Value("${user.oauth.clientSecret}")
-	private String clientSecret;
-	@Value("${user.oauth.redirectUris}")
-	private String redirectURLs;
-
-	private final PasswordEncoder passwordEncoder;
-
-	public AuthorizationServerConfig(PasswordEncoder passwordEncoder) {
-		this.passwordEncoder = passwordEncoder;
-	}
-
-	/**
-	 * Spring Security OAuth exposes two endpoints for checking tokens
-	 * (/oauth/check_token and /oauth/token_key). Those endpoints are not exposed by
-	 * default (have access "denyAll()").
-	 */
-	@Override
-	public void configure(AuthorizationServerSecurityConfigurer oauthServer) throws Exception {
-		oauthServer.tokenKeyAccess("permitAll()").checkTokenAccess("isAuthenticated()");
-	}
-
-	@Override
-	public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
-		clients.inMemory().withClient(clientID).secret(passwordEncoder.encode(clientSecret))
-				.authorizedGrantTypes("authorization_code").scopes("user_info").autoApprove(true)
-				.redirectUris(redirectURLs);
-	}
-}
-
-```
-
-We need to create another class for web security which is ```WebSecurity```. This class contains the configuration of url fiteration, authentication, login configurations. The user information also we are configurating in memory of the application. 
-
-```java
-package com.developerhelperhub.ms.id.config;
-
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
+import org.springframework.security.oauth2.config.annotation.web.configuration.ResourceServerConfigurerAdapter;
+import org.springframework.security.oauth2.config.annotation.web.configurers.ResourceServerSecurityConfigurer;
+import org.springframework.security.oauth2.provider.error.OAuth2AccessDeniedHandler;
+import org.springframework.security.oauth2.provider.token.DefaultTokenServices;
+import org.springframework.security.oauth2.provider.token.TokenStore;
+import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter;
+import org.springframework.security.oauth2.provider.token.store.JwtTokenStore;
 
 @Configuration
-@Order(1)
-@EnableWebSecurity
-public class WebSecurity extends WebSecurityConfigurerAdapter {
+@EnableResourceServer
+public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
 
-	@Value("${user.oauth.user.username}")
-	private String username;
-	@Value("${user.oauth.user.password}")
-	private String password;
+	private static final String RESOURCE_ID = "resource_id";
 
 	@Override
-	protected void configure(HttpSecurity http) throws Exception {
-		http.requestMatchers().antMatchers("/login", "/oauth/authorize").and().authorizeRequests().anyRequest()
-				.authenticated().and().formLogin().permitAll();
+	public void configure(ResourceServerSecurityConfigurer resources) throws Exception {
+		resources.resourceId(RESOURCE_ID).stateless(false).tokenServices(tokenServices());
 	}
 
 	@Override
-	protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-		auth.inMemoryAuthentication().withUser(username).password(passwordEncoder().encode(password)).roles("USER");
+	public void configure(HttpSecurity http) throws Exception {
+		http.anonymous().disable().authorizeRequests().antMatchers("/users/**").access("hasRole('ADMIN')").and()
+				.exceptionHandling().accessDeniedHandler(new OAuth2AccessDeniedHandler());
 	}
 
 	@Bean
-	public BCryptPasswordEncoder passwordEncoder() {
-		return new BCryptPasswordEncoder();
+	public DefaultTokenServices tokenServices() {
+		DefaultTokenServices tokenServices = new DefaultTokenServices();
+		tokenServices.setTokenStore(tokenStore());
+		return tokenServices;
 	}
+
+	@Bean
+	public JwtAccessTokenConverter accessTokenConverter() {
+		JwtAccessTokenConverter converter = new JwtAccessTokenConverter();
+		converter.setSigningKey("123456");
+		return converter;
+	}
+
+	@Bean
+	public TokenStore tokenStore() {
+		return new JwtTokenStore(accessTokenConverter());
+	}
+
 }
+
 ```
 
-Lastly, create a Java class called ```UserController```:
+We need to create ```UserController``` class to add the resource endpoints in the resource service.
 
 ```java
 package com.developerhelperhub.ms.id.controller;
 
-import java.security.Principal;
-
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class UserController {
 
-	@GetMapping("/user/me")
-	public Principal user(Principal principal) {
-		return principal;
+	@RequestMapping(value = "/user", method = RequestMethod.GET)
+	public String listUser() {
+		return "success";
+	}
+
+	@RequestMapping(value = "/user", method = RequestMethod.POST)
+	public String create() {
+		return "success";
+	}
+
+	@RequestMapping(value = "/user/{id}", method = RequestMethod.DELETE)
+	public String delete(@PathVariable(value = "id") Long id) {
+		return "success";
 	}
 }
 ```
 
-Above all classes creation we can run the spring boot application, this application run on 8081 and the context path will ```/auth```. We can use this url ```http://localhost:8081/auth/login``` to check, whether it is working or not.
+Above all classes creation of resource server, we can run the spring boot application, this application run on 8083. We can use this url ```http://localhost:8083/resources/user``` to check, whether it is accessing or not. Now, the API return the 401 unauthorized error. We need to generate the token from authroization server first and then we need to use that access token to access the this API.
 
-### client-application-service
 
-We need to create the Oauth2 client spring boot application. 
+### To generate the tokens with grant type "password"
 
-Rename the src/main/resources/application.properties to application.yml and update it to match the YAML below:
+Here, I am using Postman to test the grant types. Please open the Postman and open a new tab. We have to add below configuration and data in the tab.
+* Method: POST
+* URL: http://localhost:8081/auth/oauth/token
+* Select the "Autherization" tab and change the type to "Basic Auth". Enter the username and password of client id and client secrete. Click the "Update Request" button
+* Select the "Body" tab and select "x-www-form-urlencoded" option
+* Add the keys and values in the form
+  - grant_type is password
+  - username is mycloud
+  - password is mycloud@1234
+* Click the "Send" button.
 
-```yaml
-server:
-  port: 8082
-  servlet:
-    session:
-      cookie:
-        name: UISESSION
-
-logging:
-  level:
-    org:
-      springframework: DEBUG
-
-spring:
-  thymeleaf:
-    cache: false
-  security:
-    oauth2:
-      client:
-        registration:
-          custom-client:
-            client-id: my-cloud-identity
-            client-secret: VkZpzzKa3uMq4vqg
-            client-name: Auth Server
-            scope: user_info
-            provider: custom-provider
-            redirect-uri: http://localhost:8082/login/oauth2/code/
-            client-authentication-method: basic
-            authorization-grant-type: authorization_code
-        provider:
-          custom-provider:
-            token-uri: http://localhost:8081/auth/oauth/token
-            authorization-uri: http://localhost:8081/auth/oauth/authorize
-            user-info-uri: http://localhost:8081/auth/user/me
-            user-name-attribute: name
-```
-
-Notice that here you’re configuring the clientId and clientSecret, as well as various URIs for your authentication server. These need to match the values in the other project.
-
-Update the ```ClientServiceApplication``` class to match:
-```java
-package com.developerhelperhub.ms.client;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-
-@SpringBootApplication
-public class ClientServiceApplication {
-
-	public static void main(String[] args) {
-		SpringApplication.run(ClientServiceApplication.class, args);
-	}
-
+The below respone we can see the access and refresh token are generated by the authroization server through the JWT token service. 
+```json
+{
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1ODUyMDE3MTIsInVzZXJfbmFtZSI6Im15Y2xvdWQiLCJhdXRob3JpdGllcyI6WyJST0xFX1VTRVIiXSwianRpIjoiZWU3NGRmZDUtYjE3Mi00ZTdmLWJhMjUtNWQ1Yzc3NDFhNDU0IiwiY2xpZW50X2lkIjoibXktY2xvdWQtaWRlbnRpdHkiLCJzY29wZSI6WyJ1c2VyX2luZm8iXX0.f8L_jXAGTw-l0wqWSEkSrO9tnJmtDB_9C0ZQffzn1HU",
+    "token_type": "bearer",
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX25hbWUiOiJteWNsb3VkIiwic2NvcGUiOlsidXNlcl9pbmZvIl0sImF0aSI6ImVlNzRkZmQ1LWIxNzItNGU3Zi1iYTI1LTVkNWM3NzQxYTQ1NCIsImV4cCI6MTU4NTI0MTcxMiwiYXV0aG9yaXRpZXMiOlsiUk9MRV9VU0VSIl0sImp0aSI6IjhmNjA5NTE1LWFmOTItNGEzMS1iNDYyLTQ0ZjE2OGI2ZTYxYiIsImNsaWVudF9pZCI6Im15LWNsb3VkLWlkZW50aXR5In0.l4dvchYz6Od5pxx3McSze2MU6y5o2OO6BvbO6aX1bEE",
+    "expires_in": 43198,
+    "scope": "user_info",
+    "jti": "ee74dfd5-b172-4e7f-ba25-5d5c7741a454"
 }
 ```
 
-Create a new Java class called ```WebController```:
-```java
-package com.developerhelperhub.ms.client.controller;
+### To authorize the resource server APIs
 
-import java.security.Principal;
-
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.RequestMapping;
-
-@Controller
-public class WebController {
-
-	@RequestMapping("/securedPage")
-	public String securedPage(Model model, Principal principal) {
-		
-		model.addAttribute("authenticationName", principal.getName());
-        
-		return "securedPage";
-	}
-
-	@RequestMapping("/")
-	public String index(Model model, Principal principal) {
-		return "index";
-	}
-}
-
+Open a new tab. We have to add below configuration and data in the tab.
+* Method: GET
+* URL: http://localhost:8083/resources/user
+* In the "Header" tab we need to add two keys and values
+ - One is "Autherization" header. Its values we have to provide access token with "bearer" key word like ```bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1ODUyMDE3MTIsInVzZXJfbmFtZSI6Im15Y2xvdWQiLCJhdXRob3JpdGllcyI6WyJST0xFX1VTRVIiXSwianRpIjoiZWU3NGRmZDUtYjE3Mi00ZTdmLWJhMjUtNWQ1Yzc3NDFhNDU0IiwiY2xpZW50X2lkIjoibXktY2xvdWQtaWRlbnRpdHkiLCJzY29wZSI6WyJ1c2VyX2luZm8iXX0.f8L_jXAGTw-l0wqWSEkSrO9tnJmtDB_9C0ZQffzn1HU```
+* Another one is "Content-Type" and its value is "application/json"
+* Click the "Send" button.
+ 
+The API give the response contains
+```json
+success
 ```
 
-This is the controller that maps incoming requests to your Thymeleaf template files.
-
-Create another Java class named ```SecurityConfiguration```:
-
-```java
-package com.developerhelperhub.ms.client.config;
-
-import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-
-@Configuration
-public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
-   
-	@Override
-    public void configure(HttpSecurity http) throws Exception {
-        http.antMatcher("/**").authorizeRequests()
-            .antMatchers("/", "/login**").permitAll()
-            .anyRequest().authenticated()
-            .and()
-            .oauth2Login();
-    }
-}
-
-```
-
-This class defines the Spring Security configuration for your application: allowing all requests on the home path and requiring authentication for all other routes. it also sets up the Spring Boot OAuth login flow.
-
-The templates go in the ```src/main/resources/templates``` directory. You’ll notice in the controller above that they’re simply returning strings for the routes. When the Thymeleaf dependencies are included the build, Spring Boot automatically assumes you’re returning the name of the template file from the controllers, and so the app will look in ```src/main/resources/templates``` for a file name with the returned string plus ```.html```.
-
-Create the home template: ```src/main/resources/templates/index.html```:
-
-```html
-<!DOCTYPE html>  
-<html lang="en">  
-<head>  
-    <meta charset="UTF-8">  
-    <title>Home</title>  
-</head>  
-<body>  
-    <h1>Spring Security SSO</h1>  
-    <a href="securedPage">Login</a>  
-</body>  
-</html>
-```
-
-And the secured template: ```src/main/resources/templates/securedPage.html```:
-
-```html
-<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
-<head>
-<meta charset="UTF-8">
-<title>Secured Page</title>
-</head>
-<body>
-	<h1>Secured Page</h1>
-	<span th:text="${authenticationName}"></span>
-</body>
-</html>
-```
-
-Above all classes creation of client application, we can run the spring boot application, this application run on 8082. We can use this url ```http://localhost:8082/``` to check, whether it is working or not. Once loaded the index page, you can click on the login link.
-
-The client application will automatically redirect the login page of autherization server. here we need to enter the username and password of the client application which is configured in the autherization server. Once autherization successed, the autherization server provide the the autherization code and redirect to the client application. The client application validate the autherization code wihth autherization server, if the code valide, the autherization server will provide the token to client application. Once shared the token, the client application will redirect the ```securedPage.html``` page.
-
-[Reference from developer.okta.com](https://developer.okta.com/blog/2019/03/12/oauth2-spring-security-guide)
+### Reference
+* [Authorization and Resource Server](https://www.devglan.com/spring-security/spring-boot-oauth2-jwt-example)
+* [Oauth2 Autherization Server and Client Application](https://github.com/developerhelperhub/spring-boot2-oauth2-server-grant-password-refresh-token)
