@@ -1,6 +1,6 @@
 # Spring Boot 2.2.5 Oauth2 Authorization Server and Resource Server
 
-This repository contains the Oauth2 authorization server and resource server implementation. This example is continuation of the [Oauth2 Autherization Server and Client Application](https://github.com/developerhelperhub/spring-boot2-authorization-and-resource-servers/) example. I would suggest, please look previous implementation before looking this source code. In the previous example, I used same authentication server as resource, but users and clients information are stored in memory. In this example, I am using to load users and clients from database. I am using mongoDB database to store information in application. 
+This repository contains the Oauth2 authorization server and resource server implementation. This example is continuation of the [Oauth2 Autherization and Resource Servers](https://github.com/developerhelperhub/spring-boot2-authorization-and-resource-servers/) example. I would suggest, please look previous implementation before looking this source code. In the previous example, I used same authentication server as resource, but users and clients information are loaded from memory. In this example, I am using to load users and clients from database. I am using mongoDB database to store information in application. 
 
 This repository contains four maven project. 
 * my-cloud-service: Its main module, it contains the dependecy management of our application.
@@ -17,6 +17,7 @@ We need to add maven dependency to manage and support the entity management on m
     <artifactId>spring-boot-starter-data-mongodb</artifactId>
 </dependency>
 ```
+
 Note: When I added the mongoDB dependency in this project, I got an error ```Caused by: java.lang.ClassNotFoundException: org.springframework.data.mongodb.core.convert.MongoCustomConversions``` because I am using older ```org.springframework.data:spring-data-releasetrain:Fowler-SR2``` release train dependency in ```my-cloud-service``` parent project and I changed to ```org.springframework.data:spring-data-releasetrain:Moore-SR6``` latest version.
 
 ### Create the services for managing the users.
