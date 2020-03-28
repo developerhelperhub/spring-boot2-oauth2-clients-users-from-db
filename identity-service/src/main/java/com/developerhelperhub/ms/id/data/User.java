@@ -19,6 +19,9 @@ import org.springframework.stereotype.Component;
 import com.developerhelperhub.ms.id.entity.UserEntity;
 import com.developerhelperhub.ms.id.repository.UserRepository;
 
+import lombok.Getter;
+import lombok.Setter;
+
 @Component
 @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public class User implements UserDetails, UserDetailsService {
@@ -30,18 +33,32 @@ public class User implements UserDetails, UserDetailsService {
 	 */
 	private static final long serialVersionUID = 6072929707082314818L;
 
+	@Getter
+	@Setter
 	private String username;
 
+	@Getter
+	@Setter
 	private String password;
 
+	@Getter
+	@Setter
 	private boolean accountNonExpired;
 
+	@Getter
+	@Setter
 	private boolean accountNonLocked;
 
+	@Getter
+	@Setter
 	private boolean credentialsNonExpired;
 
+	@Getter
+	@Setter
 	private boolean enabled;
 
+	@Getter
+	@Setter
 	private Collection<? extends GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
 
 	@Autowired
@@ -98,59 +115,4 @@ public class User implements UserDetails, UserDetailsService {
 		return new User(entity.get());
 	}
 
-	public String getUsername() {
-		return username;
-	}
-
-	public void setUsername(String username) {
-		this.username = username;
-	}
-
-	public String getPassword() {
-		return password;
-	}
-
-	public void setPassword(String password) {
-		this.password = password;
-	}
-
-	public boolean isAccountNonExpired() {
-		return accountNonExpired;
-	}
-
-	public void setAccountNonExpired(boolean accountNonExpired) {
-		this.accountNonExpired = accountNonExpired;
-	}
-
-	public boolean isAccountNonLocked() {
-		return accountNonLocked;
-	}
-
-	public void setAccountNonLocked(boolean accountNonLocked) {
-		this.accountNonLocked = accountNonLocked;
-	}
-
-	public boolean isCredentialsNonExpired() {
-		return credentialsNonExpired;
-	}
-
-	public void setCredentialsNonExpired(boolean credentialsNonExpired) {
-		this.credentialsNonExpired = credentialsNonExpired;
-	}
-
-	public boolean isEnabled() {
-		return enabled;
-	}
-
-	public void setEnabled(boolean enabled) {
-		this.enabled = enabled;
-	}
-
-	public Collection<? extends GrantedAuthority> getAuthorities() {
-		return authorities;
-	}
-
-	public void setAuthorities(Collection<? extends GrantedAuthority> authorities) {
-		this.authorities = authorities;
-	}
 }

@@ -23,6 +23,9 @@ import org.springframework.stereotype.Component;
 import com.developerhelperhub.ms.id.entity.OauthClientEntity;
 import com.developerhelperhub.ms.id.repository.OauthClientRepository;
 
+import lombok.Getter;
+import lombok.Setter;
+
 @Component
 @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public class OauthClient implements ClientDetails, ClientDetailsService {
@@ -35,30 +38,56 @@ public class OauthClient implements ClientDetails, ClientDetailsService {
 	private static final long serialVersionUID = -7265763015228159319L;
 
 	@Id
+	@Getter
+	@Setter
 	private String clientId;
 
+	@Getter
+	@Setter
 	private Set<String> resourceIds;
 
+	@Getter
+	@Setter
 	private boolean secretRequired;
 
+	@Getter
+	@Setter
 	private String clientSecret;
 
+	@Getter
+	@Setter
 	private boolean scoped;
 
+	@Getter
+	@Setter
 	private Set<String> scope;
 
+	@Getter
+	@Setter
 	private Set<String> authorizedGrantTypes;
 
+	@Getter
+	@Setter
 	private Set<String> registeredRedirectUri;
 
+	@Getter
+	@Setter
 	private Integer accessTokenValiditySeconds;
 
+	@Getter
+	@Setter
 	private Integer refreshTokenValiditySeconds;
 
+	@Getter
+	@Setter
 	private boolean autoApprove;
 
+	@Getter
+	@Setter
 	private Collection<GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
 
+	@Getter
+	@Setter
 	private Map<String, Object> additionalInformation = new HashMap<String, Object>();
 
 	@Autowired
@@ -138,120 +167,9 @@ public class OauthClient implements ClientDetails, ClientDetailsService {
 		return new OauthClient(entity.get());
 	}
 
-	public String getClientId() {
-		return clientId;
-	}
-
-	public void setClientId(String clientId) {
-		this.clientId = clientId;
-	}
-
-	public Set<String> getResourceIds() {
-		return resourceIds;
-	}
-
-	public void setResourceIds(Set<String> resourceIds) {
-		this.resourceIds = resourceIds;
-	}
-
-	public boolean isSecretRequired() {
-		return secretRequired;
-	}
-
-	public void setSecretRequired(boolean secretRequired) {
-		this.secretRequired = secretRequired;
-	}
-
-	public String getClientSecret() {
-		return clientSecret;
-	}
-
-	public void setClientSecret(String clientSecret) {
-		this.clientSecret = clientSecret;
-	}
-
-	public boolean isScoped() {
-		return scoped;
-	}
-
-	public void setScoped(boolean scoped) {
-		this.scoped = scoped;
-	}
-
-	public Set<String> getScope() {
-		return scope;
-	}
-
-	public void setScope(Set<String> scope) {
-		this.scope = scope;
-	}
-
-	public Set<String> getAuthorizedGrantTypes() {
-		return authorizedGrantTypes;
-	}
-
-	public void setAuthorizedGrantTypes(Set<String> authorizedGrantTypes) {
-		this.authorizedGrantTypes = authorizedGrantTypes;
-	}
-
-	public Set<String> getRegisteredRedirectUri() {
-		return registeredRedirectUri;
-	}
-
-	public void setRegisteredRedirectUri(Set<String> registeredRedirectUri) {
-		this.registeredRedirectUri = registeredRedirectUri;
-	}
-
-	public Integer getAccessTokenValiditySeconds() {
-		return accessTokenValiditySeconds;
-	}
-
-	public void setAccessTokenValiditySeconds(Integer accessTokenValiditySeconds) {
-		this.accessTokenValiditySeconds = accessTokenValiditySeconds;
-	}
-
-	public Integer getRefreshTokenValiditySeconds() {
-		return refreshTokenValiditySeconds;
-	}
-
-	public void setRefreshTokenValiditySeconds(Integer refreshTokenValiditySeconds) {
-		this.refreshTokenValiditySeconds = refreshTokenValiditySeconds;
-	}
-
-	public boolean isAutoApprove() {
-		return autoApprove;
-	}
-
-	public void setAutoApprove(boolean autoApprove) {
-		this.autoApprove = autoApprove;
-	}
-
-	public boolean isAutoApprove(String scope) {
-		return autoApprove;
-	}
-
-	public Collection<GrantedAuthority> getAuthorities() {
-		return authorities;
-	}
-
-	public void setAuthorities(Collection<GrantedAuthority> authorities) {
-		this.authorities = authorities;
-	}
-
-	public Map<String, Object> getAdditionalInformation() {
-		return additionalInformation;
-	}
-
-	public void setAdditionalInformation(Map<String, Object> additionalInformation) {
-		this.additionalInformation = additionalInformation;
-	}
-
-	public OauthClientRepository getClientRepository() {
-		return clientRepository;
-	}
-
-	public void setClientRepository(OauthClientRepository clientRepository) {
-		this.clientRepository = clientRepository;
+	public boolean isAutoApprove(String autoApprove) {
+		this.autoApprove = Boolean.parseBoolean(autoApprove);
+		return this.autoApprove;
 	}
 
 }
