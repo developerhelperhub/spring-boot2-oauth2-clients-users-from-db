@@ -9,16 +9,26 @@ This repository contains four maven project.
 * resource-service: This resource server to provide the resource services for our application.
 
 ### Updation and additions in the identity-service
-We need to add maven dependency to manage and support the entity management on mongoDB. Spring boot provides the below dependency to support it.
+We need to add maven dependency to manage and support the entity management on mongoDB. The below dependencies are added.
 
 ```xml
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-data-mongodb</artifactId>
 </dependency>
+
+<dependency>
+    <groupId>org.projectlombok</groupId>
+    <artifactId>lombok</artifactId>
+    <version>1.18.12</version>
+</dependency>
 ```
 
+We are using the ```lombok``` library for avoiding the setter and getter in the classes. I added some examples in the reference section for ```lombok``` implementation and how to support ```lombok``` for eclipse.
+
 Note: When I added the mongoDB dependency in this project, I got an error ```Caused by: java.lang.ClassNotFoundException: org.springframework.data.mongodb.core.convert.MongoCustomConversions``` because I am using older ```org.springframework.data:spring-data-releasetrain:Fowler-SR2``` release train dependency in ```my-cloud-service``` parent project and I changed to ```org.springframework.data:spring-data-releasetrain:Moore-SR6``` latest version.
+
+
 
 ### Create the services for managing the users.
 
@@ -30,7 +40,12 @@ package com.developerhelperhub.ms.id.entity;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import lombok.Getter;
+import lombok.Setter;
+
 @Document("users")
+@Getter
+@Setter
 public class UserEntity {
 
 	@Id
@@ -45,55 +60,6 @@ public class UserEntity {
 	private boolean credentialsNonExpired;
 
 	private boolean enabled;
-
-	public String getUsername() {
-		return username;
-	}
-
-	public void setUsername(String username) {
-		this.username = username;
-	}
-
-	public String getPassword() {
-		return password;
-	}
-
-	public void setPassword(String password) {
-		this.password = password;
-	}
-
-	public boolean isAccountNonExpired() {
-		return accountNonExpired;
-	}
-
-	public void setAccountNonExpired(boolean accountNonExpired) {
-		this.accountNonExpired = accountNonExpired;
-	}
-
-	public boolean isAccountNonLocked() {
-		return accountNonLocked;
-	}
-
-	public void setAccountNonLocked(boolean accountNonLocked) {
-		this.accountNonLocked = accountNonLocked;
-	}
-
-	public boolean isCredentialsNonExpired() {
-		return credentialsNonExpired;
-	}
-
-	public void setCredentialsNonExpired(boolean credentialsNonExpired) {
-		this.credentialsNonExpired = credentialsNonExpired;
-	}
-
-	public boolean isEnabled() {
-		return enabled;
-	}
-
-	public void setEnabled(boolean enabled) {
-		this.enabled = enabled;
-	}
-
 }
 ```
 
@@ -143,6 +109,9 @@ import org.springframework.stereotype.Component;
 import com.developerhelperhub.ms.id.entity.UserEntity;
 import com.developerhelperhub.ms.id.repository.UserRepository;
 
+import lombok.Getter;
+import lombok.Setter;
+
 @Component
 @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public class User implements UserDetails, UserDetailsService {
@@ -154,18 +123,32 @@ public class User implements UserDetails, UserDetailsService {
 	 */
 	private static final long serialVersionUID = 6072929707082314818L;
 
+	@Getter
+	@Setter
 	private String username;
 
+	@Getter
+	@Setter
 	private String password;
 
+	@Getter
+	@Setter
 	private boolean accountNonExpired;
 
+	@Getter
+	@Setter
 	private boolean accountNonLocked;
 
+	@Getter
+	@Setter
 	private boolean credentialsNonExpired;
 
+	@Getter
+	@Setter
 	private boolean enabled;
 
+	@Getter
+	@Setter
 	private Collection<? extends GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
 
 	@Autowired
@@ -222,61 +205,6 @@ public class User implements UserDetails, UserDetailsService {
 		return new User(entity.get());
 	}
 
-	public String getUsername() {
-		return username;
-	}
-
-	public void setUsername(String username) {
-		this.username = username;
-	}
-
-	public String getPassword() {
-		return password;
-	}
-
-	public void setPassword(String password) {
-		this.password = password;
-	}
-
-	public boolean isAccountNonExpired() {
-		return accountNonExpired;
-	}
-
-	public void setAccountNonExpired(boolean accountNonExpired) {
-		this.accountNonExpired = accountNonExpired;
-	}
-
-	public boolean isAccountNonLocked() {
-		return accountNonLocked;
-	}
-
-	public void setAccountNonLocked(boolean accountNonLocked) {
-		this.accountNonLocked = accountNonLocked;
-	}
-
-	public boolean isCredentialsNonExpired() {
-		return credentialsNonExpired;
-	}
-
-	public void setCredentialsNonExpired(boolean credentialsNonExpired) {
-		this.credentialsNonExpired = credentialsNonExpired;
-	}
-
-	public boolean isEnabled() {
-		return enabled;
-	}
-
-	public void setEnabled(boolean enabled) {
-		this.enabled = enabled;
-	}
-
-	public Collection<? extends GrantedAuthority> getAuthorities() {
-		return authorities;
-	}
-
-	public void setAuthorities(Collection<? extends GrantedAuthority> authorities) {
-		this.authorities = authorities;
-	}
 }
 ```
 
@@ -292,7 +220,12 @@ import java.util.Set;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import lombok.Getter;
+import lombok.Setter;
+
 @Document("oauth_clients")
+@Getter
+@Setter
 public class OauthClientEntity {
 
 	@Id
@@ -317,94 +250,6 @@ public class OauthClientEntity {
 	private Integer refreshTokenValiditySeconds;
 
 	private boolean autoApprove;
-
-	public String getClientId() {
-		return clientId;
-	}
-
-	public void setClientId(String clientId) {
-		this.clientId = clientId;
-	}
-
-	public Set<String> getResourceIds() {
-		return resourceIds;
-	}
-
-	public void setResourceIds(Set<String> resourceIds) {
-		this.resourceIds = resourceIds;
-	}
-
-	public boolean isSecretRequired() {
-		return secretRequired;
-	}
-
-	public void setSecretRequired(boolean secretRequired) {
-		this.secretRequired = secretRequired;
-	}
-
-	public String getClientSecret() {
-		return clientSecret;
-	}
-
-	public void setClientSecret(String clientSecret) {
-		this.clientSecret = clientSecret;
-	}
-
-	public boolean isScoped() {
-		return scoped;
-	}
-
-	public void setScoped(boolean scoped) {
-		this.scoped = scoped;
-	}
-
-	public Set<String> getScope() {
-		return scope;
-	}
-
-	public void setScope(Set<String> scope) {
-		this.scope = scope;
-	}
-
-	public Set<String> getAuthorizedGrantTypes() {
-		return authorizedGrantTypes;
-	}
-
-	public void setAuthorizedGrantTypes(Set<String> authorizedGrantTypes) {
-		this.authorizedGrantTypes = authorizedGrantTypes;
-	}
-
-	public Set<String> getRegisteredRedirectUri() {
-		return registeredRedirectUri;
-	}
-
-	public void setRegisteredRedirectUri(Set<String> registeredRedirectUri) {
-		this.registeredRedirectUri = registeredRedirectUri;
-	}
-
-	public Integer getAccessTokenValiditySeconds() {
-		return accessTokenValiditySeconds;
-	}
-
-	public void setAccessTokenValiditySeconds(Integer accessTokenValiditySeconds) {
-		this.accessTokenValiditySeconds = accessTokenValiditySeconds;
-	}
-
-	public Integer getRefreshTokenValiditySeconds() {
-		return refreshTokenValiditySeconds;
-	}
-
-	public void setRefreshTokenValiditySeconds(Integer refreshTokenValiditySeconds) {
-		this.refreshTokenValiditySeconds = refreshTokenValiditySeconds;
-	}
-
-	public boolean isAutoApprove() {
-		return autoApprove;
-	}
-
-	public void setAutoApprove(boolean autoApprove) {
-		this.autoApprove = autoApprove;
-	}
 
 }
 ```
@@ -459,6 +304,9 @@ import org.springframework.stereotype.Component;
 import com.developerhelperhub.ms.id.entity.OauthClientEntity;
 import com.developerhelperhub.ms.id.repository.OauthClientRepository;
 
+import lombok.Getter;
+import lombok.Setter;
+
 @Component
 @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public class OauthClient implements ClientDetails, ClientDetailsService {
@@ -471,30 +319,56 @@ public class OauthClient implements ClientDetails, ClientDetailsService {
 	private static final long serialVersionUID = -7265763015228159319L;
 
 	@Id
+	@Getter
+	@Setter
 	private String clientId;
 
+	@Getter
+	@Setter
 	private Set<String> resourceIds;
 
+	@Getter
+	@Setter
 	private boolean secretRequired;
 
+	@Getter
+	@Setter
 	private String clientSecret;
 
+	@Getter
+	@Setter
 	private boolean scoped;
 
+	@Getter
+	@Setter
 	private Set<String> scope;
 
+	@Getter
+	@Setter
 	private Set<String> authorizedGrantTypes;
 
+	@Getter
+	@Setter
 	private Set<String> registeredRedirectUri;
 
+	@Getter
+	@Setter
 	private Integer accessTokenValiditySeconds;
 
+	@Getter
+	@Setter
 	private Integer refreshTokenValiditySeconds;
 
+	@Getter
+	@Setter
 	private boolean autoApprove;
 
+	@Getter
+	@Setter
 	private Collection<GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
 
+	@Getter
+	@Setter
 	private Map<String, Object> additionalInformation = new HashMap<String, Object>();
 
 	@Autowired
@@ -574,120 +448,9 @@ public class OauthClient implements ClientDetails, ClientDetailsService {
 		return new OauthClient(entity.get());
 	}
 
-	public String getClientId() {
-		return clientId;
-	}
-
-	public void setClientId(String clientId) {
-		this.clientId = clientId;
-	}
-
-	public Set<String> getResourceIds() {
-		return resourceIds;
-	}
-
-	public void setResourceIds(Set<String> resourceIds) {
-		this.resourceIds = resourceIds;
-	}
-
-	public boolean isSecretRequired() {
-		return secretRequired;
-	}
-
-	public void setSecretRequired(boolean secretRequired) {
-		this.secretRequired = secretRequired;
-	}
-
-	public String getClientSecret() {
-		return clientSecret;
-	}
-
-	public void setClientSecret(String clientSecret) {
-		this.clientSecret = clientSecret;
-	}
-
-	public boolean isScoped() {
-		return scoped;
-	}
-
-	public void setScoped(boolean scoped) {
-		this.scoped = scoped;
-	}
-
-	public Set<String> getScope() {
-		return scope;
-	}
-
-	public void setScope(Set<String> scope) {
-		this.scope = scope;
-	}
-
-	public Set<String> getAuthorizedGrantTypes() {
-		return authorizedGrantTypes;
-	}
-
-	public void setAuthorizedGrantTypes(Set<String> authorizedGrantTypes) {
-		this.authorizedGrantTypes = authorizedGrantTypes;
-	}
-
-	public Set<String> getRegisteredRedirectUri() {
-		return registeredRedirectUri;
-	}
-
-	public void setRegisteredRedirectUri(Set<String> registeredRedirectUri) {
-		this.registeredRedirectUri = registeredRedirectUri;
-	}
-
-	public Integer getAccessTokenValiditySeconds() {
-		return accessTokenValiditySeconds;
-	}
-
-	public void setAccessTokenValiditySeconds(Integer accessTokenValiditySeconds) {
-		this.accessTokenValiditySeconds = accessTokenValiditySeconds;
-	}
-
-	public Integer getRefreshTokenValiditySeconds() {
-		return refreshTokenValiditySeconds;
-	}
-
-	public void setRefreshTokenValiditySeconds(Integer refreshTokenValiditySeconds) {
-		this.refreshTokenValiditySeconds = refreshTokenValiditySeconds;
-	}
-
-	public boolean isAutoApprove() {
-		return autoApprove;
-	}
-
-	public void setAutoApprove(boolean autoApprove) {
-		this.autoApprove = autoApprove;
-	}
-
-	public boolean isAutoApprove(String scope) {
-		return autoApprove;
-	}
-
-	public Collection<GrantedAuthority> getAuthorities() {
-		return authorities;
-	}
-
-	public void setAuthorities(Collection<GrantedAuthority> authorities) {
-		this.authorities = authorities;
-	}
-
-	public Map<String, Object> getAdditionalInformation() {
-		return additionalInformation;
-	}
-
-	public void setAdditionalInformation(Map<String, Object> additionalInformation) {
-		this.additionalInformation = additionalInformation;
-	}
-
-	public OauthClientRepository getClientRepository() {
-		return clientRepository;
-	}
-
-	public void setClientRepository(OauthClientRepository clientRepository) {
-		this.clientRepository = clientRepository;
+	public boolean isAutoApprove(String autoApprove) {
+		this.autoApprove = Boolean.parseBoolean(autoApprove);
+		return this.autoApprove;
 	}
 
 }
@@ -829,3 +592,5 @@ success
 * [Client Details Java Doc](https://docs.spring.io/spring-security/oauth/apidocs/org/springframework/security/oauth2/provider/ClientDetails.html)
 * [User Details Java Doc](https://docs.spring.io/spring-security/site/docs/3.0.x/apidocs/org/springframework/security/core/userdetails/UserDetails.html)
 * [Install MongoDB on Mac](https://docs.mongodb.com/manual/tutorial/install-mongodb-on-os-x/)
+* [Example Lombok](https://www.baeldung.com/intro-to-project-lombok)
+* [Support Lombok for IDEs](https://www.baeldung.com/lombok-ide)
