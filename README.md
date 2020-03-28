@@ -223,5 +223,8 @@ success
 ```
 
 ### Reference
-* [Authorization and Resource Server](https://www.devglan.com/spring-security/spring-boot-oauth2-jwt-example)
-* [Oauth2 Autherization Server and Client Application](https://github.com/developerhelperhub/spring-boot2-oauth2-server-grant-password-refresh-token)
+* [Oauth2 Autherization and Resource Servers](https://github.com/developerhelperhub/spring-boot2-authorization-and-resource-servers/)
+* [Spring Boot 2 MongoDB Example](https://www.journaldev.com/18156/spring-boot-mongodb)
+* [Client Details Java Doc](https://docs.spring.io/spring-security/oauth/apidocs/org/springframework/security/oauth2/provider/ClientDetails.html)
+* [User Details Java Doc](https://docs.spring.io/spring-security/site/docs/3.0.x/apidocs/org/springframework/security/core/userdetails/UserDetails.html)
+* [Install MongoDB on Mac](https://docs.mongodb.com/manual/tutorial/install-mongodb-on-os-x/)
