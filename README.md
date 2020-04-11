@@ -37,6 +37,8 @@ We need to create the ```UserEntity``` entity class for user. This entity class 
 ```java
 package com.developerhelperhub.ms.id.entity;
 
+import java.util.Set;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -60,6 +62,8 @@ public class UserEntity {
 	private boolean credentialsNonExpired;
 
 	private boolean enabled;
+
+	private Set<String> authorities;
 }
 ```
 
@@ -93,6 +97,7 @@ package com.developerhelperhub.ms.id.data;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,6 +105,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -149,7 +155,7 @@ public class User implements UserDetails, UserDetailsService {
 
 	@Getter
 	@Setter
-	private Collection<? extends GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
+	private Collection<GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
 
 	@Autowired
 	private UserRepository userRepository;
@@ -173,6 +179,9 @@ public class User implements UserDetails, UserDetailsService {
 
 		this.enabled = user.isEnabled();
 
+		for (String authority : user.getAuthorities()) {
+			addGrantedAuthority(authority);
+		}
 	}
 
 	public void create() {
@@ -190,6 +199,13 @@ public class User implements UserDetails, UserDetailsService {
 
 		entity.setEnabled(this.enabled);
 
+		Set<String> authorities = new HashSet<String>();
+
+		for (GrantedAuthority authority : this.authorities) {
+			authorities.add("ROLE_" + authority.getAuthority());
+		}
+		entity.setAuthorities(authorities);
+
 		userRepository.save(entity);
 
 		LOGGER.debug("{} user created!", this.username);
@@ -205,6 +221,9 @@ public class User implements UserDetails, UserDetailsService {
 		return new User(entity.get());
 	}
 
+	public void addGrantedAuthority(String authority) {
+		this.authorities.add(new SimpleGrantedAuthority(authority));
+	}
 }
 ```
 
@@ -244,6 +263,8 @@ public class OauthClientEntity {
 	private Set<String> authorizedGrantTypes;
 
 	private Set<String> registeredRedirectUri;
+
+	private Set<String> authorities;
 
 	private Integer accessTokenValiditySeconds;
 
@@ -295,6 +316,7 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.data.annotation.Id;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.provider.ClientDetails;
 import org.springframework.security.oauth2.provider.ClientDetailsService;
@@ -402,6 +424,10 @@ public class OauthClient implements ClientDetails, ClientDetailsService {
 
 		this.refreshTokenValiditySeconds = entity.getRefreshTokenValiditySeconds();
 
+		for (String authority : entity.getAuthorities()) {
+			addGrantedAuthority(authority);
+		}
+
 		this.autoApprove = entity.isAutoApprove();
 
 	}
@@ -432,6 +458,13 @@ public class OauthClient implements ClientDetails, ClientDetailsService {
 
 		entity.setAutoApprove(this.autoApprove);
 
+		Set<String> authorities = new HashSet<String>();
+
+		for (GrantedAuthority authority : this.authorities) {
+			authorities.add("ROLE_" + authority.getAuthority());
+		}
+		entity.setAuthorities(authorities);
+
 		clientRepository.save(entity);
 
 		LOGGER.debug("{} client created!", this.clientId);
@@ -453,6 +486,9 @@ public class OauthClient implements ClientDetails, ClientDetailsService {
 		return this.autoApprove;
 	}
 
+	public void addGrantedAuthority(String authority) {
+		this.authorities.add(new SimpleGrantedAuthority(authority));
+	}
 }
 ```
 
@@ -496,13 +532,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
 
 import com.developerhelperhub.ms.id.data.OauthClient;
 import com.developerhelperhub.ms.id.data.User;
 
 @SpringBootApplication
-@EnableResourceServer
 public class IdentityServiceApplication implements CommandLineRunner {
 
 	@Autowired
@@ -522,12 +556,18 @@ public class IdentityServiceApplication implements CommandLineRunner {
 		user.setAccountNonLocked(true);
 		user.setCredentialsNonExpired(true);
 		user.setEnabled(true);
+		user.addGrantedAuthority("ADMIN");
 
 		user.create();
 
 		client.setClientId("my-cloud-identity");
 		client.setClientSecret("VkZpzzKa3uMq4vqg");
-		client.setResourceIds(new HashSet<String>(Arrays.asList("identity_id", "resource_id")));
+
+		client.setResourceIds(
+				new HashSet<String>(Arrays.asList("identity_id", "resource_id", "my_cloud_discovery_id")));
+
+		client.addGrantedAuthority("ADMIN");
+
 		client.setSecretRequired(true);
 		client.setScoped(true);
 		client.setScope(new HashSet<String>(Arrays.asList("user_info")));
@@ -539,6 +579,7 @@ public class IdentityServiceApplication implements CommandLineRunner {
 		client.setAutoApprove(true);
 
 		client.create();
+
 	}
 
 }
