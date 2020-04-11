@@ -14,6 +14,7 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.data.annotation.Id;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.provider.ClientDetails;
 import org.springframework.security.oauth2.provider.ClientDetailsService;
@@ -121,6 +122,10 @@ public class OauthClient implements ClientDetails, ClientDetailsService {
 
 		this.refreshTokenValiditySeconds = entity.getRefreshTokenValiditySeconds();
 
+		for (String authority : entity.getAuthorities()) {
+			addGrantedAuthority(authority);
+		}
+
 		this.autoApprove = entity.isAutoApprove();
 
 	}
@@ -151,6 +156,13 @@ public class OauthClient implements ClientDetails, ClientDetailsService {
 
 		entity.setAutoApprove(this.autoApprove);
 
+		Set<String> authorities = new HashSet<String>();
+
+		for (GrantedAuthority authority : this.authorities) {
+			authorities.add("ROLE_" + authority.getAuthority());
+		}
+		entity.setAuthorities(authorities);
+
 		clientRepository.save(entity);
 
 		LOGGER.debug("{} client created!", this.clientId);
@@ -172,4 +184,7 @@ public class OauthClient implements ClientDetails, ClientDetailsService {
 		return this.autoApprove;
 	}
 
+	public void addGrantedAuthority(String authority) {
+		this.authorities.add(new SimpleGrantedAuthority(authority));
+	}
 }

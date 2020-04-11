@@ -1,5 +1,7 @@
 package com.developerhelperhub.ms.id.entity;
 
+import java.util.Set;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -23,4 +25,6 @@ public class UserEntity {
 	private boolean credentialsNonExpired;
 
 	private boolean enabled;
+
+	private Set<String> authorities;
 }

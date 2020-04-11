@@ -7,13 +7,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
 
 import com.developerhelperhub.ms.id.data.OauthClient;
 import com.developerhelperhub.ms.id.data.User;
 
 @SpringBootApplication
-@EnableResourceServer
 public class IdentityServiceApplication implements CommandLineRunner {
 
 	@Autowired
@@ -33,12 +31,18 @@ public class IdentityServiceApplication implements CommandLineRunner {
 		user.setAccountNonLocked(true);
 		user.setCredentialsNonExpired(true);
 		user.setEnabled(true);
+		user.addGrantedAuthority("ADMIN");
 
 		user.create();
 
 		client.setClientId("my-cloud-identity");
 		client.setClientSecret("VkZpzzKa3uMq4vqg");
-		client.setResourceIds(new HashSet<String>(Arrays.asList("identity_id", "resource_id")));
+
+		client.setResourceIds(
+				new HashSet<String>(Arrays.asList("identity_id", "resource_id", "my_cloud_discovery_id")));
+
+		client.addGrantedAuthority("ADMIN");
+
 		client.setSecretRequired(true);
 		client.setScoped(true);
 		client.setScope(new HashSet<String>(Arrays.asList("user_info")));
@@ -50,6 +54,7 @@ public class IdentityServiceApplication implements CommandLineRunner {
 		client.setAutoApprove(true);
 
 		client.create();
+
 	}
 
 }

@@ -3,6 +3,7 @@ package com.developerhelperhub.ms.id.data;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -59,7 +61,7 @@ public class User implements UserDetails, UserDetailsService {
 
 	@Getter
 	@Setter
-	private Collection<? extends GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
+	private Collection<GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
 
 	@Autowired
 	private UserRepository userRepository;
@@ -83,6 +85,9 @@ public class User implements UserDetails, UserDetailsService {
 
 		this.enabled = user.isEnabled();
 
+		for (String authority : user.getAuthorities()) {
+			addGrantedAuthority(authority);
+		}
 	}
 
 	public void create() {
@@ -100,6 +105,13 @@ public class User implements UserDetails, UserDetailsService {
 
 		entity.setEnabled(this.enabled);
 
+		Set<String> authorities = new HashSet<String>();
+
+		for (GrantedAuthority authority : this.authorities) {
+			authorities.add("ROLE_" + authority.getAuthority());
+		}
+		entity.setAuthorities(authorities);
+
 		userRepository.save(entity);
 
 		LOGGER.debug("{} user created!", this.username);
@@ -115,4 +127,7 @@ public class User implements UserDetails, UserDetailsService {
 		return new User(entity.get());
 	}
 
+	public void addGrantedAuthority(String authority) {
+		this.authorities.add(new SimpleGrantedAuthority(authority));
+	}
 }

@@ -30,6 +30,8 @@ public class OauthClientEntity {
 
 	private Set<String> registeredRedirectUri;
 
+	private Set<String> authorities;
+
 	private Integer accessTokenValiditySeconds;
 
 	private Integer refreshTokenValiditySeconds;
